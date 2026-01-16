@@ -1,25 +1,26 @@
-// --- main.js 头部 ---
+// --- main.js 完整版 (方案：稳重镜头 + 流光星钻 + 底部金色重写) ---
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-// 引入 DracoLoader
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'; 
 import { morphologyData, profileData, datingRecords, plans, clues } from './data.js';
 import { initAnimations } from './animations.js';
 import { initAudio } from './audio_player.js';
 
+// --- 全局变量 ---
 let scene, camera, renderer, model, raycaster, mouse;
+let isAnimating = false; 
+let bubbleTimer = null;  
+
 const container = document.getElementById('three-cat-container');
 const voiceAudio = document.getElementById('voice-audio');
 const speechBubble = document.getElementById('speech-bubble');
-// 向左转 10 度 (如果是向右，就把前面变成负数 -10)
-const offsetAngle = -10 * (Math.PI / 180);
-
+const offsetAngle = -20 * (Math.PI / 180);
 
 function initThree() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 5;
+    camera.position.z = 5; 
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -30,130 +31,184 @@ function initThree() {
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
 
+    // 灯光
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
-    directionalLight.position.set(2, 5, 2);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    directionalLight.position.set(2, 5, 5); 
     scene.add(directionalLight);
+    
+    const backLight = new THREE.DirectionalLight(0xffd700, 0.5); 
+    backLight.position.set(-2, 3, -5);
+    scene.add(backLight);
 
-    // --- 修改开始 ---
+    // 加载器
     const dracoLoader = new DRACOLoader();
-    // 设置解码器路径，这里直接用 CDN 的文件，不用你下载
     dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-    dracoLoader.setDecoderConfig({ type: 'js' }); // 强制使用js解码，兼容性更好
+    dracoLoader.setDecoderConfig({ type: 'js' }); 
 
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
     
-    loader.load('./cat.glb', 
-    (gltf) => {
-        model = gltf.scene;
-        
-        // --- 原来的这些 set 可以删掉或保留，反正会被下面的 adjust 覆盖 ---
-        // model.position.set(1.5, -0.5, 0); 
-        // model.scale.set(1.2, 1.2, 1.2);
-        
-        model.rotation.set(0, 0, 0); 
-        model.rotation.y = offsetAngle;
-        
-        scene.add(model);
-        
-        // 【新增这一行】：加载完立刻判断屏幕调整位置
-        adjustModelForMobile(); 
-        
-        gsap.to(container, { opacity: 1, duration: 2, ease: "power2.out" });
-        animateThree();
-    }
-);
+    const loaderEl = document.getElementById('loader');
+    const progressEl = loaderEl.querySelector('.loader-progress');
+
+    loader.load(
+        './cat.glb', 
+        (gltf) => {
+            model = gltf.scene;
+            model.rotation.set(0, 0, 0); 
+            model.rotation.y = offsetAngle;
+            scene.add(model);
+            adjustModelForMobile(); 
+            gsap.to(container, { opacity: 1, duration: 2, ease: "power2.out" });
+            gsap.to(loaderEl, { opacity: 0, duration: 0.8, onComplete: () => { loaderEl.style.display = 'none'; }});
+            animateThree();
+        },
+        (xhr) => {
+            if (xhr.lengthComputable) {
+                const percent = (xhr.loaded / xhr.total) * 100;
+                gsap.to(progressEl, { width: `${percent}%`, duration: 0.2, overwrite: true });
+            }
+        },
+        (error) => { console.error('模型加载失败:', error); gsap.to(loaderEl, { opacity: 0, onComplete: () => loaderEl.style.display = 'none' }); }
+    );
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('click', onClick);
     window.addEventListener('resize', onWindowResize);
 }
 
+// --- 交互核心 ---
 function onClick(event) {
-    // 【新增修改 1】过滤点击目标
-    // 如果点击的不是 3D 画布（canvas），而是网页上的图片(IMG)、文字(P, H1)或容器(DIV)等
-    // 直接退出函数，不进行射线检测
     if (event.target.tagName !== 'CANVAS') return;
-
-    // 【新增修改 2】安全检查 (上一轮改过的)
     if (!model) return;
-
+    
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
     raycaster.setFromCamera(mouse, camera);
-
-    // 【之前改过的】只检测猫
     const intersects = raycaster.intersectObjects([model], true);
 
     if (intersects.length > 0) {
-        const voiceAudio = document.getElementById('voice-audio');
-        const speechBubble = document.getElementById('speech-bubble');
+        // 1. 闪光
+        triggerWhiteFlash();
 
-        voiceAudio.currentTime = 0;
-        voiceAudio.play();
+        // 2. 气泡
+        if (speechBubble) {
+            if (bubbleTimer) { clearTimeout(bubbleTimer); bubbleTimer = null; }
+            speechBubble.classList.add('active');
+            gsap.to(speechBubble, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)", overwrite: true });
+            bubbleTimer = setTimeout(() => {
+                speechBubble.classList.remove('active');
+                gsap.to(speechBubble, { opacity: 0, scale: 0.9, duration: 0.4 });
+                bubbleTimer = null;
+            }, 7000); 
+        }
 
-        speechBubble.classList.add('active');
-        gsap.to(speechBubble, { opacity: 1, scale: 1, duration: 0.4 });
-        
-        setTimeout(() => {
-            speechBubble.classList.remove('active');
-            gsap.to(speechBubble, { opacity: 0, scale: 0.9, duration: 0.4 });
-        }, 4000);
+        // 3. 动作
+        if (!isAnimating) {
+            isAnimating = true;
+            if (voiceAudio) { voiceAudio.currentTime = 0; voiceAudio.play().catch(e => console.log('Audio error:', e)); }
+
+            const isMobile = window.innerWidth < 768;
+            const baseY = isMobile ? -0.8 : -0.5;
+            const baseScale = isMobile ? 0.9 : 1.2;
+            const tl = gsap.timeline({ onComplete: () => { isAnimating = false; } });
+
+            tl.to(model.position, { y: baseY + 0.04, z: model.position.z + 0.15, duration: 0.6, ease: "power2.out" })
+              .to(model.scale, { x: baseScale * 1.01, y: baseScale * 1.01, z: baseScale * 1.01, duration: 0.6, ease: "power2.out" }, "<")
+              .to({}, { duration: 0.2 }) 
+              .to(model.position, { y: baseY, z: 0, duration: 0.8, ease: "power2.inOut" })
+              .to(model.scale, { x: baseScale, y: baseScale, z: baseScale, duration: 0.8, ease: "power2.inOut" }, "<");
+        }
+
+        // 4. 特效：流光星钻
+        triggerSparkles(event.clientX, event.clientY);
     }
 }
 
+// 柔光闪烁
+function triggerWhiteFlash() {
+    const flash = document.createElement('div');
+    flash.style.position = 'fixed'; flash.style.inset = '0'; flash.style.backgroundColor = 'white';
+    flash.style.zIndex = '9997'; flash.style.pointerEvents = 'none'; flash.style.opacity = '0';
+    document.body.appendChild(flash);
+    gsap.to(flash, { opacity: 0.3, duration: 0.15, yoyo: true, repeat: 1, onComplete: () => flash.remove() });
+}
+
+// 流光星钻特效
+function triggerSparkles(x, y) {
+    // 十字星
+    const star = document.createElement('div');
+    star.style.position = 'fixed'; star.style.left = `${x}px`; star.style.top = `${y}px`;
+    star.style.width = '0px'; star.style.height = '0px'; star.style.backgroundColor = '#FFFFFF';
+    star.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+    star.style.transform = 'translate(-50%, -50%)'; star.style.zIndex = '9999'; star.style.pointerEvents = 'none';
+    document.body.appendChild(star);
+    gsap.to(star, { width: '50px', height: '50px', rotation: 90, opacity: 0, duration: 0.4, ease: "power2.out", onComplete: () => star.remove() });
+
+    // 波纹
+    const ripple = document.createElement('div');
+    ripple.style.position = 'fixed'; ripple.style.left = `${x}px`; ripple.style.top = `${y}px`;
+    ripple.style.width = '0px'; ripple.style.height = '0px';
+    ripple.style.border = '1.5px solid rgba(255, 255, 255, 0.8)'; 
+    ripple.style.borderRadius = '50%'; ripple.style.transform = 'translate(-50%, -50%)';
+    ripple.style.pointerEvents = 'none'; ripple.style.zIndex = '9998'; 
+    document.body.appendChild(ripple);
+    gsap.to(ripple, { width: '80px', height: '80px', opacity: 0, duration: 0.5, ease: "power1.out", onComplete: () => ripple.remove() });
+
+    // 粒子
+    const count = 16 + Math.floor(Math.random() * 8); 
+    for (let i = 0; i < count; i++) {
+        const particle = document.createElement('div');
+        const size = 3 + Math.random() * 5; 
+        particle.style.position = 'fixed'; particle.style.left = `${x}px`; particle.style.top = `${y}px`;
+        particle.style.width = `${size}px`; particle.style.height = `${size}px`;
+        const colorType = Math.random();
+        if(colorType > 0.6) particle.style.backgroundColor = '#FFD700'; 
+        else if(colorType > 0.2) particle.style.backgroundColor = '#FFFFFF'; 
+        else particle.style.backgroundColor = '#E0F7FA'; 
+        particle.style.transform = 'rotate(45deg)'; 
+        particle.style.pointerEvents = 'none'; particle.style.zIndex = '9999';
+        particle.style.boxShadow = `0 0 ${size}px ${particle.style.backgroundColor}`;
+        document.body.appendChild(particle);
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 40 + Math.random() * 60; 
+        const moveX = Math.cos(angle) * velocity;
+        const moveY = Math.sin(angle) * velocity;
+        gsap.to(particle, { x: moveX, y: moveY, rotation: Math.random() * 360, opacity: 0, scale: 0, duration: 0.5 + Math.random() * 0.5, ease: "power2.out", onComplete: () => { particle.remove(); } });
+    }
+}
+
+// --- 基础功能 ---
 function onMouseMove(event) {
     if (!model) return;
     const x = (event.clientX / window.innerWidth) - 0.5;
     const y = (event.clientY / window.innerHeight) - 0.5;
-    
-    gsap.to(model.rotation, {
-        y: x * (Math.PI / 4)+ offsetAngle,
-        x: y * (Math.PI / 10),
-        duration: 1.2,
-        ease: "power2.out"
-    });
+    gsap.to(model.rotation, { y: x * (Math.PI / 3) + offsetAngle, x: y * (Math.PI / 12), duration: 1.0, ease: "power2.out" });
 }
-
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    // 【新增这一行】：窗口大小变了（比如手机横屏），也要重新调整位置
     adjustModelForMobile();
 }
-
-// main.js 中新增这个函数
-
 function adjustModelForMobile() {
     if (!model) return;
-
     const width = window.innerWidth;
-
     if (width < 768) {
-        // 【手机端配置】
-        // x=0 居中, y=-0.5 稍微往下放一点
-        model.position.set(0, -0.8, 0); 
-        // 缩小一点，防止占满屏幕挡住字
-        model.scale.set(0.9, 0.9, 0.9);
+        model.position.set(0, -0.8, 0); model.scale.set(0.9, 0.9, 0.9);
+        camera.position.z = 6; 
     } else {
-        // 【电脑端配置 - 保持原样】
-        model.position.set(1.5, -0.5, 0); 
-        model.scale.set(1.2, 1.2, 1.2);
+        model.position.set(1.5, -0.5, 0); model.scale.set(1.2, 1.2, 1.2);
+        camera.position.z = 5; 
     }
 }
-
 function animateThree() {
     requestAnimationFrame(animateThree);
     renderer.render(scene, camera);
 }
-
-
-
 function renderClues() {
     const grid = document.getElementById('clue-grid');
     grid.innerHTML = clues.map(clue => `
@@ -164,64 +219,22 @@ function renderClues() {
                     <span class="text-[10px] text-stone-600 uppercase tracking-widest mt-2">点击揭秘</span>
                 </div>
             </div>
-
             <div class="relative z-10">
                 <span class="text-[10px] text-gold uppercase tracking-[0.3em] font-serif mb-2 block">${clue.tag}</span>
                 <h4 class="text-xl font-serif mb-3">${clue.title}</h4>
                 <p class="text-xs text-stone-400 leading-relaxed font-light">${clue.desc}</p>
-                
-                <p class="clue-roast mt-4 text-[9px] text-gold italic border-t border-white/5 pt-4 opacity-0 translate-y-4 transition-all duration-700 ease-out">
-                    ${clue.roast}
-                </p>
+                <p class="clue-roast mt-4 text-[9px] text-gold italic border-t border-white/5 pt-4 opacity-0 translate-y-4 transition-all duration-700 ease-out">${clue.roast}</p>
             </div>
         </div>
     `).join('');
-
-    // 绑定点击事件
-    const items = grid.querySelectorAll('.clue-item');
-    items.forEach(item => {
+    grid.querySelectorAll('.clue-item').forEach(item => {
         item.addEventListener('click', () => {
-            const roast = item.querySelector('.clue-roast');
-            const overlay = item.querySelector('.clue-overlay');
-
-            // 1. 文字浮现动画 (移除隐藏样式)
-            roast.classList.remove('opacity-0', 'translate-y-4');
-            
-            // 2. 强制隐藏遮罩层 (让内容完全清晰)
-            overlay.style.opacity = '0';
-            overlay.style.pointerEvents = 'none'; // 防止遮罩层挡住后续操作
+            item.querySelector('.clue-roast').classList.remove('opacity-0', 'translate-y-4');
+            item.querySelector('.clue-overlay').style.opacity = '0';
+            item.querySelector('.clue-overlay').style.pointerEvents = 'none'; 
         });
     });
 }
-
-function createPawPrint(x, y) {
-    const layer = document.getElementById('paw-layer');
-    const paw = document.createElement('div');
-    paw.className = 'absolute w-12 h-12 pointer-events-none z-50';
-    paw.style.left = `${x - 24}px`;
-    paw.style.top = `${y - 24}px`;
-    paw.innerHTML = `
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="14" r="5" fill="#D4AF37" fill-opacity="0.4"/>
-            <circle cx="7" cy="6" r="3" fill="#D4AF37" fill-opacity="0.4"/>
-            <circle cx="17" cy="6" r="3" fill="#D4AF37" fill-opacity="0.4"/>
-            <circle cx="4" cy="11" r="2.5" fill="#D4AF37" fill-opacity="0.4"/>
-            <circle cx="20" cy="11" r="2.5" fill="#D4AF37" fill-opacity="0.4"/>
-        </svg>
-    `;
-    layer.appendChild(paw);
-
-    gsap.fromTo(paw, { scale: 0, opacity: 0 }, { 
-        scale: 1, 
-        opacity: 0.8, 
-        duration: 0.3, 
-        ease: "back.out(2)",
-        onComplete: () => {
-            gsap.to(paw, { opacity: 0, y: -20, duration: 0.5, delay: 0.5, onComplete: () => paw.remove() });
-        }
-    });
-}
-
 function renderPlans() {
     const planList = document.getElementById('plan-list');
     planList.innerHTML = plans.map((plan, i) => `
@@ -235,25 +248,15 @@ function renderPlans() {
             </div>
         </div>
     `).join('');
-
     document.querySelectorAll('.checklist-item').forEach(item => {
         item.addEventListener('click', (e) => {
-            const rect = item.getBoundingClientRect();
-            const parentRect = document.querySelector('.journal-paper').getBoundingClientRect();
-            const x = e.clientX - parentRect.left;
-            const y = e.clientY - parentRect.top;
-            
-            createPawPrint(x, y);
-
-
+            triggerSparkles(e.clientX, e.clientY);
             gsap.to(item, { x: 5, duration: 0.05, repeat: 3, yoyo: true });
-            
             const isCompleted = item.classList.toggle('completed');
             item.querySelector('.check-icon').style.opacity = isCompleted ? '1' : '0';
         });
     });
 }
-
 function renderDating() {
     const timeline = document.getElementById('dating-timeline');
     timeline.innerHTML = datingRecords.map((record, i) => `
@@ -271,7 +274,6 @@ function renderDating() {
         </article>
     `).join('');
 }
-
 function renderMorphology() {
     const grid = document.getElementById('morphology-grid');
     grid.innerHTML = morphologyData.map(item => `
@@ -284,172 +286,121 @@ function renderMorphology() {
         </div>
     `).join('');
 }
-
 function renderProfile() {
     const likesGrid = document.getElementById('likes-grid');
     const dislikesGrid = document.getElementById('dislikes-grid');
-
     likesGrid.innerHTML = profileData.likes.map(item => `
         <div class="flex items-center gap-4">
-            <div class="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-300">
-                <i data-lucide="${item.icon}" class="w-3.5 h-3.5"></i>
-            </div>
+            <div class="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-300"><i data-lucide="${item.icon}" class="w-3.5 h-3.5"></i></div>
             <span class="text-sm font-serif text-stone-600">${item.name}</span>
         </div>
     `).join('');
-
     dislikesGrid.innerHTML = profileData.dislikes.map(item => `
         <div class="flex items-center gap-4 opacity-40">
-            <div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400">
-                <i data-lucide="${item.icon}" class="w-3.5 h-3.5"></i>
-            </div>
+            <div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400"><i data-lucide="${item.icon}" class="w-3.5 h-3.5"></i></div>
             <span class="text-sm font-serif text-stone-500">${item.name}</span>
         </div>
     `).join('');
 }
 
-// main.js - 修复版 initFooterSurprise
-
+// ============================================
+// 👾 方案三 (刷新重置版)：数码解密 + 全句彩蛋 + 每次刷新归零
+// ============================================
 function initFooterSurprise() {
     const quoteEl = document.getElementById('footer-quote');
     if (!quoteEl) return;
 
+    // 1. 计数器：每次刷新页面都会重置为 0
     let clickCount = 0;
     
-    // 【关键修复】把变量定义放进点击事件外面，但确保在这里被初始化
-    const normalMessages = [
-        "“新的一年，<br>请允许我继续陪伴你。”",
-        "“新的一年，<br>请允许我继续书写你。”",
-        "“新的一年，<br>请允许我继续敷衍你。”",
-        "“新的一年，<br>请允许我继续注视你。”",
-        "“新的一年，<br>请允许我继续研究你。”"
-    ];
+    // 2. 词库：普通词里没有“喜欢你”
+    const normalKeywords = ["陪伴你", "书写你", "敷衍你", "注视你", "治愈你"];
+    const specialKeyword = "喜欢你";
+    const prefixText = "新的一年，<br>请允许我继续";
+    
+    // 初始化 DOM
+    quoteEl.style.transition = "all 0.5s ease";
+    quoteEl.innerHTML = `
+        <span id="quote-prefix" style="opacity: 0.6; transition: all 0.5s ease;">${prefixText}</span>
+        <span id="quote-keyword" style="display:inline-block; color: #D4AF37; font-weight: bold; margin-left: 4px; min-width: 60px; font-family: monospace;">研究你</span>
+    `;
 
-    const specialMessage = "“新的一年，<br>请允许我继续喜欢你。”";
+    const keywordEl = document.getElementById('quote-keyword');
+    const prefixEl = document.getElementById('quote-prefix');
 
     quoteEl.addEventListener('click', (e) => {
         clickCount++;
-        // 可以在控制台打印一下次数，方便你调试
-        console.log("当前点击次数:", clickCount);
+        // 可以在控制台打印一下，方便你自己测试
+        // console.log("当前点击次数:", clickCount); 
+        
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        
+        // 3. 决定目标词
+        let targetWord = "";
+        
+        // 严格设定：必须是第 10 次 (或者 20, 30...)
+        if (clickCount > 0 && clickCount % 10 === 0) {
+            targetWord = specialKeyword;
+        } else {
+            // 随机取普通词，且不重复当前显示的词
+            do { 
+                targetWord = normalKeywords[Math.floor(Math.random() * normalKeywords.length)];
+            } while (targetWord === keywordEl.innerText);
+        }
 
-        // 1. 先隐藏文字
-        gsap.to(quoteEl, {
-            opacity: 0,
-            y: -10,
-            duration: 0.2,
-            onComplete: () => {
-                // 2. 隐藏完成后，执行换字逻辑
-                try {
-                    let targetText = "";
+        // 4. 数码解密动画
+        const chars = "!@#$%^&*()_+-=[]{}|;:,.<>?01";
+        let iterations = 0;
+        
+        const interval = setInterval(() => {
+            keywordEl.innerText = targetWord.split("")
+                .map((letter, index) => {
+                    if (index < iterations) return targetWord[index];
+                    return chars[Math.floor(Math.random() * chars.length)];
+                })
+                .join("");
+            
+            if (iterations >= targetWord.length) { 
+                clearInterval(interval);
+                keywordEl.innerText = targetWord;
 
-                    // --- 逻辑判断 ---
-                    if (clickCount === 10) {
-                        // 第 10 次：必须是彩蛋
-                        targetText = specialMessage;
-                    } else {
-                        // 其他次数：随机抽取
-                        // 如果超过10次，把彩蛋加进池子；否则只用普通池
-                        // 这是一个新数组，确保不会修改原数组
-                        const currentPool = clickCount > 10 
-                            ? normalMessages.concat([specialMessage]) 
-                            : normalMessages;
-                        
-                        // 随机且不重复（防止连续两次一样）
-                        do {
-                            const randomIndex = Math.floor(Math.random() * currentPool.length);
-                            targetText = currentPool[randomIndex];
-                        } while (targetText === quoteEl.innerHTML && currentPool.length > 1);
-                    }
+                // --- 🌟 触发全句彩蛋逻辑 ---
+                if (targetWord === specialKeyword) {
+                    // A. 触发流光星钻特效
+                    triggerSparkles(mouseX, mouseY);
+                    
+                    // B. 全句变身：整句话变成樱花粉 + 发光
+                    keywordEl.style.color = "#FFB7C5"; 
+                    keywordEl.style.textShadow = "0 0 15px rgba(255, 183, 197, 0.9)";
+                    
+                    prefixEl.style.color = "#FFB7C5";
+                    prefixEl.style.opacity = "1"; 
+                    prefixEl.style.textShadow = "0 0 10px rgba(255, 183, 197, 0.5)";
+                    
+                    // 心跳动画
+                    gsap.fromTo(quoteEl, 
+                        { scale: 1 }, 
+                        { scale: 1.05, duration: 0.2, yoyo: true, repeat: 1, ease: "power2.out" }
+                    );
 
-                    // --- 赋值 ---
-                    if (targetText) {
-                        quoteEl.innerHTML = targetText;
-                    } else {
-                        // 万一出错了，回滚到默认文字，防止空白
-                        quoteEl.innerHTML = "“新的一年，<br>请允许我继续研究你。”";
-                    }
-
-                    // --- 样式特效 ---
-                    if (targetText === specialMessage) {
-                        quoteEl.classList.add('love-text');
-                        // 只有在变成彩蛋的那一刻飘心
-                        triggerHearts(e.clientX, e.clientY);
-                    } else {
-                        quoteEl.classList.remove('love-text');
-                    }
-
-                } catch (error) {
-                    console.error("换字逻辑出错:", error);
-                    // 出错兜底：至少把字显示出来
-                    quoteEl.style.opacity = 1;
+                } else {
+                    // C. 还原普通状态
+                    keywordEl.style.color = "#D4AF37"; // 金色
+                    keywordEl.style.textShadow = "none";
+                    
+                    prefixEl.style.color = ""; // 恢复默认
+                    prefixEl.style.opacity = "0.6";
+                    prefixEl.style.textShadow = "none";
                 }
-
-                // 3. 换好字了，重新显示出来
-                gsap.to(quoteEl, { opacity: 1, y: 0, duration: 0.4 });
             }
-        });
+            iterations += 1/3; 
+        }, 50); 
     });
-}
-
-// --- 辅助函数：生成飘浮爱心 ---
-// 请确保这段代码在 main.js 中存在，且不在其他函数内部
-function triggerHearts(x, y) {
-    // 每次生成 5-10 个爱心
-    const count = 5 + Math.floor(Math.random() * 5); 
-    
-    for (let i = 0; i < count; i++) {
-        const heart = document.createElement('div');
-        heart.classList.add('floating-heart');
-        heart.innerHTML = '❤️'; // 你也可以换成 '💖' 或 '🌸'
-        
-        // 随机偏移位置 (让爱心散开一点)
-        const offsetX = (Math.random() - 0.5) * 80;
-        const offsetY = (Math.random() - 0.5) * 80;
-        
-        // 设置初始位置 (在鼠标点击的位置附近)
-        heart.style.left = `${x + offsetX}px`;
-        heart.style.top = `${y + offsetY}px`;
-        
-        // 随机大小和旋转角度，看起来更自然
-        const scale = 0.6 + Math.random() * 0.8;
-        const rotate = (Math.random() - 0.5) * 45;
-        heart.style.transform = `scale(${scale}) rotate(${rotate}deg)`;
-        
-        document.body.appendChild(heart);
-
-        // 1.5秒动画结束后，自动把元素删掉，防止页面变卡
-        setTimeout(() => {
-            heart.remove();
-        }, 1500);
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    initThree();
-    initAudio();
-    renderMorphology();
-    renderProfile();
-    renderClues();
-    renderDating();
-    renderPlans();
-    
-    lucide.createIcons();
-    initAnimations();
-    initFooterSurprise();
-    
-    const loader = document.getElementById('loader');
-    const progress = loader.querySelector('.loader-progress');
-    
-    gsap.to(progress, {
-        width: "100%",
-        duration: 1.5,
-        ease: "power2.inOut",
-        onComplete: () => {
-            gsap.to(loader, {
-                opacity: 0,
-                duration: 0.8,
-                onComplete: () => loader.style.display = 'none'
-            });
-        }
-    });
+    initThree(); initAudio(); renderMorphology(); renderProfile();
+    renderClues(); renderDating(); renderPlans();
+    lucide.createIcons(); initAnimations(); initFooterSurprise();
 });
