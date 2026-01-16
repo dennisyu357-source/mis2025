@@ -37,7 +37,7 @@ function initThree() {
         (gltf) => {
             model = gltf.scene;
             model.position.set(1.0, -0.5, 0); 
-            model.scale.set(1.2, 1.2, 1.2);
+            model.scale.set(1.0, 1.0, 1.0);
             // 先重置一下旋转，确保干净
             model.rotation.set(0, 0, 0); 
             // 加上偏移量 (Y轴控制左右转)
