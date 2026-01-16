@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我所认知的小咪 2025年度复盘 | PEAK EDITION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-creamy text-dark-gold overflow-x-hidden selection:bg-gold/20 selection:text-gold font-sans">
+    <div class="noise-overlay"></div>
+    <div id="particle-container" class="fixed inset-0 pointer-events-none z-0"></div>
+
+    <!-- Minimal Music Player -->
+    <div id="music-player" class="fixed top-8 right-8 z-[100] group flex items-center gap-4">
+        <button id="music-toggle" class="w-10 h-10 rounded-full border border-gold/20 flex items-center justify-center bg-white/50 backdrop-blur-sm hover:bg-white transition-all">
+            <i data-lucide="volume-2" id="play-icon" class="w-4 h-4 text-gold"></i>
+            <i data-lucide="volume-x" id="pause-icon" class="w-4 h-4 text-gold hidden"></i>
+        </button>
+        <audio id="bg-music" src="./music.mp3" loop></audio>
+        <audio id="voice-audio" src="./speech.mp3"></audio>
+    </div>
+
+    <!-- Magazine Loader -->
+    <div id="loader" class="fixed inset-0 z-[1000] flex items-center justify-center bg-creamy">
+        <div class="flex flex-col items-center">
+            <div class="loader-line w-48 h-[1px] bg-gold/20 relative overflow-hidden">
+                <div class="loader-progress absolute inset-0 bg-gold w-0"></div>
+            </div>
+            <span class="mt-4 text-[10px] tracking-[0.5em] text-gold uppercase font-serif">Awaiting the Muse...</span>
+        </div>
+    </div>
+
+    <!-- Hero: 3D Interaction -->
+    <header class="relative h-screen flex items-center justify-center p-8 md:p-16 overflow-hidden">
+        <div id="three-cat-container" class="absolute inset-0 z-0 cursor-pointer"></div>
+        
+        <!-- Speech Bubble (Hidden by default) -->
+        <div id="speech-bubble" class="absolute top-1/4 left-[65%] -translate-x-1/2 pointer-events-none opacity-0 z-20">
+            <div class="bg-white px-6 py-3 rounded-2xl shadow-xl border border-gold/10 relative">
+                <p class="text-sm font-serif italic text-dark-gold">“不知道这个淡人做了什么复盘给我，本咪倒要好好瞧瞧！🐱”</p>
+                <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-r border-b border-gold/10 rotate-45"></div>
+            </div>
+        </div>
+
+        <div class="relative z-10 w-full max-w-7xl mx-auto flex flex-col items-start justify-end h-full pb-24 hero-content opacity-0 translate-y-10 pointer-events-none">
+            <div class="p-8 md:p-12 border-l-2 border-gold/40 inline-block max-w-2xl">
+                <span class="text-gold text-[10px] tracking-[0.8em] uppercase mb-4 block font-serif">Interactive Exhibition 2025</span>
+                <h1 class="text-6xl md:text-9xl font-serif font-bold text-stone-800 leading-[0.9] mb-8">
+                    我所认知的<br>小咪 <span class="text-gold italic font-light">2025</span>
+                </h1>
+                <div class="flex items-center gap-8">
+                    <p class="text-stone-400 font-sans tracking-[0.3em] text-[10px] uppercase pt-2">
+                        PEAK REVIEW / START FROM 2025.10.10
+                    </p>
+                    <div class="h-[1px] w-24 bg-stone-200"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="absolute bottom-10 left-10 flex flex-col gap-2">
+            <span class="text-[8px] text-stone-300 uppercase tracking-widest font-serif">Interactive Instruction</span>
+            <span class="text-[8px] text-stone-400 uppercase tracking-[0.4em]">Touch the Cat</span>
+        </div>
+    </header>
+
+    <main class="relative z-10">
+        <!-- Morphology Section -->
+        <section id="morphology" class="py-40 px-8 reveal-section">
+            <div class="max-w-7xl mx-auto">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-12" id="morphology-grid"></div>
+            </div>
+        </section>
+
+        <!-- Profile Section -->
+        <section id="profile" class="py-40 px-8 bg-white/40 reveal-section">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex flex-col lg:flex-row gap-24">
+                    <div class="lg:w-1/3">
+                        <h2 class="text-5xl font-serif font-bold mb-8 leading-tight">人物档案<br><span class="text-gold italic text-3xl">THE DOSSIER</span></h2>
+                        <div class="space-y-12 mt-16">
+                            <div class="border-b border-gold/10 pb-6">
+                                <span class="block text-[10px] tracking-widest text-stone-400 uppercase mb-3 font-serif">Idol</span>
+                                <span class="text-3xl font-serif">刘宇</span>
+                            </div>
+                            <div class="border-b border-gold/10 pb-6">
+                                <span class="block text-[10px] tracking-widest text-stone-400 uppercase mb-3 font-serif">Constellation</span>
+                                <span class="text-3xl font-serif">07.18 / 巨蟹座 ♋</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-12">
+                        <div class="magazine-card p-12 bg-white border border-stone-50 shadow-sm">
+                            <h3 class="text-xs font-bold text-rose-400 mb-10 tracking-[0.4em] uppercase font-serif">High Affinity</h3>
+                            <div id="likes-grid" class="grid grid-cols-2 gap-10"></div>
+                        </div>
+                        <div class="magazine-card p-12 bg-stone-50/50">
+                            <h3 class="text-xs font-bold text-stone-400 mb-10 tracking-[0.4em] uppercase font-serif">Low Tolerance</h3>
+                            <div id="dislikes-grid" class="grid grid-cols-2 gap-10"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mystery Game: Clue Wall -->
+        <section id="clue-wall" class="py-40 px-8 bg-stone-900 text-white overflow-hidden reveal-section">
+            <div class="max-w-7xl mx-auto">
+                <div class="mb-20">
+                    <h2 class="text-5xl font-serif font-bold mb-4">乱入一下！桔子驾到！</h2>
+                    <p class="text-stone-500 font-serif italic text-lg max-w-xl">
+                        这里是桔子专区！
+                    </p>
+                </div>
+                <div id="clue-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+            </div>
+        </section>
+
+        <!-- Dating Section -->
+        <section id="dating" class="py-60 px-8 reveal-section">
+            <div class="max-w-5xl mx-auto">
+                <div class="text-center mb-48">
+                    <span class="text-[10px] tracking-[1.5em] text-gold uppercase block mb-8 font-serif">Chronicles</span>
+                    <h2 class="text-7xl font-serif italic tracking-tighter text-stone-800">相约见面的那些回忆</h2>
+                    <p class="text-xl font-serif text-stone-400 mt-6 italic">第一次加微信 2025.10.10</p>
+                </div>
+                <div id="dating-timeline" class="space-y-64"></div>
+            </div>
+        </section>
+
+        <!-- Checklist Section -->
+        <section id="future" class="py-40 px-8 reveal-section relative">
+            <div class="max-w-3xl mx-auto bg-white p-12 md:p-24 shadow-2xl border border-stone-100 rounded-lg journal-paper relative overflow-hidden">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-serif font-bold mb-2">2026 约定清单</h2>
+                    <p class="text-[10px] tracking-[0.3em] text-stone-300 uppercase italic font-serif">Intentions & Promises</p>
+                </div>
+                <div class="space-y-8" id="plan-list"></div>
+                <div id="paw-layer" class="absolute inset-0 pointer-events-none z-20"></div>
+            </div>
+        </section>
+
+        <!-- Reflection -->
+        <section id="reflection" class="py-40 px-8 reveal-section overflow-hidden">
+            <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 items-stretch border border-stone-100 rounded-[3rem] bg-white shadow-2xl overflow-hidden">
+                <div class="p-16 md:p-32 border-b lg:border-b-0 lg:border-r border-stone-50 flex flex-col justify-center bg-stone-50/20">
+                    <span class="text-[30px] text-stone-600 uppercase tracking-[0.6em] mb-12 font-serif">自我反省</span>
+                    <div class="space-y-8 max-w-sm">
+                        <p class="text-stone-300 font-serif text-3xl leading-snug pale-response">
+                            “敷衍！”<span class="dot-loading"></span>
+                        </p>
+                        <p class="text-stone-400 text-sm leading-relaxed border-l border-stone-200 pl-6 italic">
+                            （我知错……其实对小咪的关注度是 200%，只是表现形式比较低调。）
+                        </p>
+                    </div>
+                </div>
+                <div class="p-16 md:p-32 flex flex-col justify-center items-center text-center relative overflow-hidden bg-white">
+                    <h3 class="little-sun-text text-6xl md:text-8xl font-serif font-bold mb-12 cursor-default relative z-10">淡人</h3>
+                    <div class="relative z-10 space-y-6">
+                        <div class="px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100 shadow-sm xiaomi-shout inline-block">
+                            <p class="text-rose-500 font-bold text-sm tracking-tight">“也许我真的是淡人？我也不知道！<br>可能还需要小咪进一步探索……”</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="py-40 text-center bg-creamy px-8">
+    <div class="max-w-xl mx-auto">
+        <p id="footer-quote" class="font-serif italic text-4xl mb-12 text-stone-700 leading-tight cursor-pointer select-none transition-colors duration-300 hover:text-stone-900 active:scale-95">
+            “新的一年，<br>请允许我继续研究你。”
+        </p>
+
+        <div class="h-[1px] w-16 bg-gold/40 mx-auto mb-12"></div>
+        <p class="text-stone-300 text-[10px] tracking-[0.5em] uppercase font-serif">DESIGNED FOR XIAO YING</p>
+    </div>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
