@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { morphologyData, profileData, datingRecords, plans, clues } from './data.js';
 import { initAnimations } from './animations.js';
+// 【修改 1】添加这一行，引入你刚才写好的 audio_player.js
+import { initAudio } from './audio_player.js';
 
 let scene, camera, renderer, model, raycaster, mouse;
 const container = document.getElementById('three-cat-container');
@@ -34,21 +36,25 @@ function initThree() {
 
     const loader = new GLTFLoader();
     loader.load('./cat.glb', 
-        (gltf) => {
-            model = gltf.scene;
-            model.position.set(1.0, -0.5, 0); 
-            model.scale.set(1.0, 1.0, 1.0);
-            // 先重置一下旋转，确保干净
-            model.rotation.set(0, 0, 0); 
-            // 加上偏移量 (Y轴控制左右转)
-            model.rotation.y = offsetAngle;
-            
-            scene.add(model);
-            
-            gsap.to(container, { opacity: 1, duration: 2, ease: "power2.out" });
-            animateThree();
-        }
-    );
+    (gltf) => {
+        model = gltf.scene;
+        
+        // --- 原来的这些 set 可以删掉或保留，反正会被下面的 adjust 覆盖 ---
+        // model.position.set(1.5, -0.5, 0); 
+        // model.scale.set(1.2, 1.2, 1.2);
+        
+        model.rotation.set(0, 0, 0); 
+        model.rotation.y = offsetAngle;
+        
+        scene.add(model);
+        
+        // 【新增这一行】：加载完立刻判断屏幕调整位置
+        adjustModelForMobile(); 
+        
+        gsap.to(container, { opacity: 1, duration: 2, ease: "power2.out" });
+        animateThree();
+    }
+);
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('click', onClick);
@@ -106,6 +112,28 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // 【新增这一行】：窗口大小变了（比如手机横屏），也要重新调整位置
+    adjustModelForMobile();
+}
+
+// main.js 中新增这个函数
+
+function adjustModelForMobile() {
+    if (!model) return;
+
+    const width = window.innerWidth;
+
+    if (width < 768) {
+        // 【手机端配置】
+        // x=0 居中, y=-0.5 稍微往下放一点
+        model.position.set(0, -0.8, 0); 
+        // 缩小一点，防止占满屏幕挡住字
+        model.scale.set(0.9, 0.9, 0.9);
+    } else {
+        // 【电脑端配置 - 保持原样】
+        model.position.set(1.5, -0.5, 0); 
+        model.scale.set(1.2, 1.2, 1.2);
+    }
 }
 
 function animateThree() {
@@ -113,24 +141,7 @@ function animateThree() {
     renderer.render(scene, camera);
 }
 
-function initMusic() {
-    const musicBtn = document.getElementById('music-toggle');
-    const audio = document.getElementById('bg-music');
-    const playIcon = document.getElementById('play-icon');
-    const pauseIcon = document.getElementById('pause-icon');
 
-    musicBtn.addEventListener('click', () => {
-        if (audio.paused) {
-            audio.play();
-            playIcon.classList.add('hidden');
-            pauseIcon.classList.remove('hidden');
-        } else {
-            audio.pause();
-            playIcon.classList.remove('hidden');
-            pauseIcon.classList.add('hidden');
-        }
-    });
-}
 
 function renderClues() {
     const grid = document.getElementById('clue-grid');
@@ -404,7 +415,7 @@ function triggerHearts(x, y) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initThree();
-    initMusic();
+    initAudio();
     renderMorphology();
     renderProfile();
     renderClues();
