@@ -1,8 +1,11 @@
+// --- main.js 头部 ---
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// 引入 DracoLoader
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'; 
 import { morphologyData, profileData, datingRecords, plans, clues } from './data.js';
 import { initAnimations } from './animations.js';
-// 【修改 1】添加这一行，引入你刚才写好的 audio_player.js
 import { initAudio } from './audio_player.js';
 
 let scene, camera, renderer, model, raycaster, mouse;
@@ -34,7 +37,15 @@ function initThree() {
     directionalLight.position.set(2, 5, 2);
     scene.add(directionalLight);
 
+    // --- 修改开始 ---
+    const dracoLoader = new DRACOLoader();
+    // 设置解码器路径，这里直接用 CDN 的文件，不用你下载
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    dracoLoader.setDecoderConfig({ type: 'js' }); // 强制使用js解码，兼容性更好
+
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
+    
     loader.load('./cat.glb', 
     (gltf) => {
         model = gltf.scene;
